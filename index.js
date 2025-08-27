@@ -13,7 +13,7 @@ app.use(express.json());
 
 // --- Configuração da conexão com o banco de dados ---
 const db = mysql.createConnection({
-  host: '191.252.181.110',
+  host: 'localhost',
   user: 'servidorsit',
   password: 'Ay76la08.sit!',
   database: 'SIT_DB'
@@ -31,9 +31,9 @@ db.connect(err => {
 
 /////////////////////////////////////////////////////////// --- Rota para Cadastrar um novo contato ---
 app.post('/fretes', (req, res) => {
-  const { nome, fone, ddd, email } = req.body;
+  const {peso, Motorista, PlacaVeic, Cliente, Val_ton, dt_frete, ValTotFrete, NTicket, CTE, N_Nota, Fazenda, Cidade, KM, DtCad, vl_Pedagio } = req.body;
 
-  if (!nome || !fone || !ddd || !email) {
+  if (!peso || !Motorista || !PlacaVeic || !Cliente || !Val_ton || !dt_frete || !Fazenda ) {
     return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
   }
   const sql = 'INSERT INTO fretes (peso, Motorista, PlacaVeic, Cliente, Val_ton, dt_frete, ValTotFrete, NTicket, CTE, N_Nota, Fazenda, Cidade, KM, DtCad, vl_Pedagio ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,?, ?, ?, ?, ?)';
@@ -56,6 +56,7 @@ app.get('/fretes', (req, res) => {
     }
     res.status(200).json(results);
   });
+  
 });
 
 
