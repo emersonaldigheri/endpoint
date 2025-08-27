@@ -1,12 +1,27 @@
 import express from 'express';
 import mysql from 'mysql2';
 import cors from 'cors';
+import bcrypt from 'bcrypt';
+import multer from 'multer'; // Importa o multer para upload de arquivos
+import path from 'path';   // Importa o path para lidar com caminhos de arquivos
+import fs from 'fs';       // Importa o File System para criar a pasta de uploads
 
 const app = express();
 const port = 3000;
+
 app.use(cors());
 app.use(express.json());
 
+// --- CRIA A PASTA DE UPLOADS SE ELA NÃO EXISTIR ---
+const uploadsDir = './uploads';
+if (!fs.existsSync(uploadsDir)){
+    fs.mkdirSync(uploadsDir);
+}
+// Torna a pasta 'uploads' acessível publicamente para que as imagens possam ser vistas
+app.use('/uploads', express.static('uploads'));
+
+
+// --- Configuração da conexão com o banco de dados ---
 const db = mysql.createConnection({
     host: 'localhost',
     user: 'servidorsit',
@@ -22,78 +37,82 @@ db.connect(err => {
     console.log('Conectado ao banco de dados MySQL.');
 });
 
-// --- NOVAS ROTAS DE VALIDAÇÃO ---
 
-// Rota para verificar se um TICKET já existe
-app.get('/fretes/check-ticket', (req, res) => {
-    const { nTicket } = req.query;
-    if (!nTicket) {
-        return res.status(400).json({ error: 'Número do ticket não fornecido.' });
+// --- CONFIGURAÇÃO DO MULTER PARA UPLOAD DE IMAGENS ---
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/'); // Define a pasta onde os arquivos serão salvos
+    },
+    filename: function (req, file, cb) {
+        // Cria um nome de arquivo único para evitar que um arquivo substitua outro
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'ticket-' + uniqueSuffix + path.extname(file.originalname));
     }
-    const sql = 'SELECT NTicket FROM fretes WHERE NTicket = ?';
-    db.query(sql, [nTicket], (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: 'Erro no servidor.' });
+});
+
+const upload = multer({ storage: storage });
+
+
+// --- ROTA DE LOGIN (SEGURA COM BCRYPT) ---
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Login e senha são obrigatórios.' });
+    }
+    const sql = 'SELECT id, nome, setor, senha, liberado FROM usuarios WHERE Login = ?';
+    db.query(sql, [username], async (err, results) => {
+        if (err) return res.status(500).json({ error: 'Erro interno no servidor.' });
+        if (results.length === 0) return res.status(404).json({ error: 'Usuário não encontrado.' });
+        
+        const user = results[0];
+        if (user.liberado !== 'S') return res.status(403).json({ error: 'Este usuário está inativo.' });
+
+        const passwordMatch = await bcrypt.compare(password, user.senha);
+        if (passwordMatch) {
+            const userToken = { id: user.id, nome: user.nome, setor: user.setor };
+            res.status(200).json({ message: 'Login bem-sucedido!', token: userToken });
+        } else {
+            res.status(401).json({ error: 'Senha incorreta.' });
         }
-        res.json({ exists: results.length > 0 });
     });
 });
 
-// Rota para verificar se uma NOTA FISCAL já existe
-app.get('/fretes/check-nota', (req, res) => {
-    const { nNota } = req.query;
-    if (!nNota) {
-        return res.status(400).json({ error: 'Número da nota não fornecido.' });
-    }
-    const sql = 'SELECT N_Nota FROM fretes WHERE N_Nota = ?';
-    db.query(sql, [nNota], (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: 'Erro no servidor.' });
-        }
-        res.json({ exists: results.length > 0 });
-    });
-});
 
-
-// --- ATUALIZAÇÃO DA ROTA DE CADASTRO DE FRETE ---
-app.post('/fretes', (req, res) => {
-    // 1. Pega TODOS os campos, incluindo os novos
+// --- ROTA DE CADASTRO DE FRETE (ATUALIZADA COM UPLOAD DE IMAGEM) ---
+app.post('/fretes', upload.single('ticket_image'), (req, res) => {
+    // 'upload.single('ticket_image')' processa UM arquivo enviado no campo 'ticket_image'
+    
+    // Os campos de texto do formulário vêm em req.body
     const {
-        // Campos de seleção
-        Motorista, PlacaVeic, Fazenda, Cliente,
-        // IDs
-        ID_FUNC, ID_FAZENDA, ID_VEICULO, ID_CLIENTE,
-        // Valores auto-preenchidos
-        Cidade, Val_ton, KM, vl_Pedagio, vl_comb,
-        // Valores de referência de data
-        Quinz, MesRef,
-        // Dados manuais
-        peso, NTicket, CTE, N_Nota, dt_frete,
-        // Dados de sistema
-        hora
+        Motorista, PlacaVeic, Fazenda, ID_FUNC, ID_FAZENDA, ID_VEICULO, ID_CLIENTE,
+        Cliente, Cidade, Val_ton, KM, vl_Pedagio, vl_comb, Quinz, MesRef,
+        peso, NTicket, CTE, N_Nota, dt_frete, hora
     } = req.body;
+    
+    // As informações do arquivo (se enviado) vêm em req.file
+    // Se nenhuma imagem for enviada, req.file será undefined
+    const imagem_ticket_url = req.file ? req.file.path : null;
 
-    // 2. Validação principal (campos essenciais)
+    // Validação dos campos essenciais
     if (!Motorista || !PlacaVeic || !Fazenda || !Cliente || !Val_ton || !peso || !dt_frete) {
-        return res.status(400).json({ error: 'Campos essenciais como Motorista, Placa, Fazenda, Cliente, Valor/Ton, Peso e Data são obrigatórios.' });
+        return res.status(400).json({ error: 'Campos essenciais são obrigatórios.' });
     }
 
-    // 3. Calcula o Valor Total do Frete no backend
     const ValTotFrete = parseFloat(peso) * parseFloat(Val_ton);
-    const DtCad = new Date(); // Data de cadastro gerada no servidor
+    const DtCad = new Date();
 
-    // 4. Query SQL com os NOVOS CAMPOS
     const sql = `INSERT INTO fretes (
         peso, Motorista, PlacaVeic, Cliente, Val_ton, dt_frete, ValTotFrete,
         NTicket, CTE, N_Nota, Fazenda, Cidade, KM, DtCad, vl_Pedagio,
-        ID_FUNC, ID_FAZENDA, ID_VEICULO, ID_CLIENTE, Quinz, MesRef, vl_comb, hora
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        ID_FUNC, ID_FAZENDA, ID_VEICULO, ID_CLIENTE, Quinz, MesRef, vl_comb, hora,
+        imagem_ticket_url
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-    // 5. Valores para inserir (incluindo os novos)
     const values = [
         peso, Motorista, PlacaVeic, Cliente, Val_ton, dt_frete, ValTotFrete,
         NTicket || null, CTE || null, N_Nota || null, Fazenda, Cidade || null, KM || null, DtCad, vl_Pedagio || null,
-        ID_FUNC, ID_FAZENDA, ID_VEICULO, ID_CLIENTE, Quinz, MesRef, vl_comb || null, hora
+        ID_FUNC, ID_FAZENDA, ID_VEICULO, ID_CLIENTE, Quinz, MesRef, vl_comb || null, hora,
+        imagem_ticket_url // Adiciona o caminho da imagem no final
     ];
 
     db.query(sql, values, (err, result) => {
@@ -106,61 +125,49 @@ app.post('/fretes', (req, res) => {
 });
 
 
-// --- SUAS OUTRAS ROTAS (GET /fretes, /fazendas, etc.) ---
-///////////////////////////////////////////////////////// --- Rota para Consultar todos os contatos ---
-app.get('/fretes', (req, res) => {
-  const sql = 'SELECT peso, Motorista, PlacaVeic, Cliente, Val_ton, dt_frete, ValTotFrete, NTicket, CTE, N_Nota, Fazenda, Cidade, KM, DtCad, vl_Pedagio FROM fretes';
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error('Erro ao consultar os FRETES:', err);
-      return res.status(500).json({ error: 'Erro ao buscar os FRETES.' });
-    }
-    res.status(200).json(results);
-  });
+// --- SUAS OUTRAS ROTAS (GET) ---
+
+app.get('/fazendas', (req, res) => { /* ... seu código aqui ... */ });
+app.get('/veiculos', (req, res) => { /* ... seu código aqui ... */ });
+app.get('/motoristas', (req, res) => { /* ... seu código aqui ... */ });
+app.get('/usuarios', (req, res) => { /* ... seu código aqui ... */ });
+app.get('/mesref', (req, res) => { /* ... seu código aqui ... */ });
+
+// Rota para buscar MesRef e Quinzena por data exata
+app.get('/mesref/by-date', (req, res) => {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ error: 'Data não fornecida.' });
+    const sql = 'SELECT mesref AS MesRef, quinzena AS Quinz FROM mesref WHERE DATA = ? LIMIT 1';
+    db.query(sql, [date], (err, results) => {
+        if (err) return res.status(500).json({ error: 'Erro no servidor.' });
+        if (results.length > 0) res.json(results[0]);
+        else res.status(404).json({ error: 'Nenhum período encontrado.' });
+    });
 });
-///////////////////////////////////////////////////////// --- Rota para Consultar todos os MOTORISTAS ---
-app.get('/motoristas', (req, res) => {
-  const sql = 'SELECT ID, nome, cargo FROM funcionarios';
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error('Erro ao consultar os MOTORISTAS:', err);
-      return res.status(500).json({ error: 'Erro ao buscar os MOTORISTAS.' });
-    }
-    res.status(200).json(results);
-  });
+
+// Rotas de verificação de duplicidade
+app.get('/fretes/check-ticket', (req, res) => {
+    const { nTicket } = req.query;
+    const sql = 'SELECT NTicket FROM fretes WHERE NTicket = ?';
+    db.query(sql, [nTicket], (err, results) => {
+        if (err) return res.status(500).json({ error: 'Erro no servidor.' });
+        res.json({ exists: results.length > 0 });
+    });
 });
-///////////////////////////////////////////////////////// --- Rota para Consultar todos os PLACAS ---
-app.get('/veiculos', (req, res) => {
-  const sql = 'SELECT ID, placa FROM veiculos';
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error('Erro ao consultar os VEICULOS:', err);
-      return res.status(500).json({ error: 'Erro ao buscar os VEICULOS.' });
-    }
-    res.status(200).json(results);
-  });
+
+app.get('/fretes/check-nota', (req, res) => {
+    const { nNota } = req.query;
+    const sql = 'SELECT N_Nota FROM fretes WHERE N_Nota = ?';
+    db.query(sql, [nNota], (err, results) => {
+        if (err) return res.status(500).json({ error: 'Erro no servidor.' });
+        res.json({ exists: results.length > 0 });
+    });
 });
-///////////////////////////////////////////////////////// --- Rota para Consultar todos os FAZENDAS ---
-app.get('/fazendas', (req, res) => {
-  const sql = 'SELECT ID, VlDiesel , ID_CLIENTE , nome, cidade, km, Vl_pedagio, liberada, cliente, ID_CLIENTE, ValorTonelada FROM fazendas';
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error('Erro ao consultar os FAZENDAS:', err);
-      return res.status(500).json({ error: 'Erro ao buscar os FAZENDAS.' });
-    }
-    res.status(200).json(results);
-  });
-});
-///////////////////////////////////////////////////////// --- Rota para Consultar todos os MESREF ---
-app.get('/mesref', (req, res) => {
-  const sql = 'SELECT DATA, MESREF, QUINZENA FROM mesref';
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error('Erro ao consultar os MESREF:', err);
-      return res.status(500).json({ error: 'Erro ao buscar os MESREF.' });
-    }
-    res.status(200).json(results);
-  });
+
+
+// Inicia o servidor
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Servidor rodando em http://localhost:${port}`);
 });
 
 
