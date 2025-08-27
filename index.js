@@ -107,12 +107,63 @@ app.post('/fretes', (req, res) => {
 
 
 // --- SUAS OUTRAS ROTAS (GET /fretes, /fazendas, etc.) ---
-// ...
-// ...
-
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Servidor rodando em http://localhost:${port}`);
+///////////////////////////////////////////////////////// --- Rota para Consultar todos os contatos ---
+app.get('/fretes', (req, res) => {
+  const sql = 'SELECT peso, Motorista, PlacaVeic, Cliente, Val_ton, dt_frete, ValTotFrete, NTicket, CTE, N_Nota, Fazenda, Cidade, KM, DtCad, vl_Pedagio FROM fretes';
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('Erro ao consultar os FRETES:', err);
+      return res.status(500).json({ error: 'Erro ao buscar os FRETES.' });
+    }
+    res.status(200).json(results);
+  });
 });
+///////////////////////////////////////////////////////// --- Rota para Consultar todos os MOTORISTAS ---
+app.get('/motoristas', (req, res) => {
+  const sql = 'SELECT ID, nome, cargo FROM funcionarios';
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('Erro ao consultar os MOTORISTAS:', err);
+      return res.status(500).json({ error: 'Erro ao buscar os MOTORISTAS.' });
+    }
+    res.status(200).json(results);
+  });
+});
+///////////////////////////////////////////////////////// --- Rota para Consultar todos os PLACAS ---
+app.get('/veiculos', (req, res) => {
+  const sql = 'SELECT ID, placa FROM veiculos';
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('Erro ao consultar os VEICULOS:', err);
+      return res.status(500).json({ error: 'Erro ao buscar os VEICULOS.' });
+    }
+    res.status(200).json(results);
+  });
+});
+///////////////////////////////////////////////////////// --- Rota para Consultar todos os FAZENDAS ---
+app.get('/fazendas', (req, res) => {
+  const sql = 'SELECT ID, VlDiesel , ID_CLIENTE , nome, cidade, km, Vl_pedagio, liberada, cliente, ID_CLIENTE, ValorTonelada FROM fazendas';
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('Erro ao consultar os FAZENDAS:', err);
+      return res.status(500).json({ error: 'Erro ao buscar os FAZENDAS.' });
+    }
+    res.status(200).json(results);
+  });
+});
+///////////////////////////////////////////////////////// --- Rota para Consultar todos os MESREF ---
+app.get('/mesref', (req, res) => {
+  const sql = 'SELECT DATA, MESREF, QUINZENA FROM mesref';
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('Erro ao consultar os MESREF:', err);
+      return res.status(500).json({ error: 'Erro ao buscar os MESREF.' });
+    }
+    res.status(200).json(results);
+  });
+});
+
+
 
 
 
