@@ -256,6 +256,109 @@ app.get('/fretes/check-nota', (req, res) => {
     });
 });
 
+///////////////////////////////////////////////////     RELATORIOS    ///////////////////////////////////////////////////////
+
+// ROTA PRINCIPAL E FLEXÍVEL PARA RELATÓRIO DE FRETES
+app.get('/fretes/report', (req, res) => {
+    // Pega todos os filtros possíveis da URL
+    const { startDate, endDate, mesRef, quinzena, clienteId } = req.query;
+
+    let baseQuery = `FROM fretes WHERE 1=1`;
+    const params = [];
+
+    // Constrói a cláusula WHERE dinamicamente
+    if (startDate && endDate) {
+        baseQuery += ` AND dt_frete BETWEEN ? AND ?`;
+        params.push(startDate, endDate);
+    }
+    if (mesRef) {
+        baseQuery += ` AND MesRef = ?`;
+        params.push(mesRef);
+    }
+    if (quinzena) {
+        baseQuery += ` AND Quinz = ?`;
+        params.push(quinzena);
+    }
+    if (clienteId) {
+        baseQuery += ` AND ID_CLIENTE = ?`;
+        params.push(clienteId);
+    }
+
+    // --- PRIMEIRA CONSULTA: Obter os totais e as médias ---
+    const summarySql = `
+        SELECT 
+            COUNT(*) as total_viagens,
+            SUM(ValTotFrete) as valor_total_frete,
+            SUM(KM) as total_km,
+            SUM(peso) as total_peso,
+            (SUM(peso) / COUNT(*)) as media_peso
+        ${baseQuery}
+    `;
+
+    db.query(summarySql, params, (err, summaryResults) => {
+        if (err) {
+            console.error('Erro ao gerar resumo do relatório:', err);
+            return res.status(500).json({ error: 'Erro ao gerar resumo.' });
+        }
+
+        const summary = summaryResults[0];
+
+        // --- SEGUNDA CONSULTA: Obter a lista detalhada dos fretes ---
+        const detailsSql = `
+            SELECT 
+                dt_frete, Motorista, peso, ValTotFrete, Fazenda, 
+                Cidade, PlacaVeic, NTicket, Cliente 
+            ${baseQuery} 
+            ORDER BY dt_frete, PlacaVeic
+        `;
+
+        db.query(detailsSql, params, (err, detailsResults) => {
+            if (err) {
+                console.error('Erro ao gerar detalhes do relatório:', err);
+                return res.status(500).json({ error: 'Erro ao gerar detalhes.' });
+            }
+            
+            // Envia uma resposta completa com o resumo e os detalhes
+            res.status(200).json({
+                summary: summary,
+                details: detailsResults
+            });
+        });
+    });
+});
+
+// ROTA PARA BUSCAR TODOS OS CLIENTES (PARA O FILTRO)
+app.get('/clientes', (req, res) => {
+    const sql = 'SELECT id, nome FROM cliente ORDER BY nome';
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Erro ao buscar clientes:', err);
+            return res.status(500).json({ error: 'Erro ao buscar clientes.' });
+        }
+        res.status(200).json(results);
+    });
+});
+
+// ROTA PARA BUSCAR OS VALORES ÚNICOS DE MesRef E Quinzena (PARA OS FILTROS)
+app.get('/fretes/references', (req, res) => {
+    const mesRefSql = 'SELECT DISTINCT MesRef FROM fretes WHERE MesRef IS NOT NULL ORDER BY MesRef DESC';
+    const quinzSql = 'SELECT DISTINCT Quinz FROM fretes WHERE Quinz IS NOT NULL ORDER BY Quinz';
+
+    db.query(mesRefSql, (err, mesRefResults) => {
+        if (err) return res.status(500).json({ error: 'Erro ao buscar MesRef.' });
+
+        db.query(quinzSql, (err, quinzResults) => {
+            if (err) return res.status(500).json({ error: 'Erro ao buscar Quinzena.' });
+
+            res.status(200).json({
+                meses: mesRefResults.map(item => item.MesRef),
+                quinzenas: quinzResults.map(item => item.Quinz)
+            });
+        });
+    });
+});
+
+
 //////////////////////////////////////////////////////////////// Inicia o servidor
 app.listen(port,'0.0.0.0', () => {
   console.log(`Servidor rodando em http://localhost:${port}`);
