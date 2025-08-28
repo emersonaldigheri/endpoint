@@ -358,6 +358,33 @@ app.get('/fretes/references', (req, res) => {
     });
 });
 
+//////////////////////// ROTA PARA DADOS DOS GRÁFICOS (FATURAMENTO E VIAGENS DOS ÚLTIMOS 6 MESES)
+app.get('/reports/fretes/last6months-summary', (req, res) => {
+    const sql = `
+        SELECT 
+            YEAR(dt_frete) as ano, 
+            MONTH(dt_frete) as mes, 
+            SUM(ValTotFrete) as faturamento_total,
+            COUNT(*) as total_viagens
+        FROM 
+            fretes 
+        WHERE 
+            dt_frete >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY 
+            YEAR(dt_frete), MONTH(dt_frete) 
+        ORDER BY 
+            ano ASC, mes ASC;
+    `;
+    
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Erro ao gerar dados para os gráficos:', err);
+            return res.status(500).json({ error: 'Erro ao gerar dados para os gráficos.' });
+        }
+        res.status(200).json(results);
+    });
+});
+
 
 //////////////////////////////////////////////////////////////// Inicia o servidor
 app.listen(port,'0.0.0.0', () => {
