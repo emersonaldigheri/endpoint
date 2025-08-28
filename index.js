@@ -206,16 +206,6 @@ app.get('/fretes/check-nota', (req, res) => {
     });
 });
 
-
-// Inicia o servidor
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Servidor rodando em http://localhost:${port}`);
-});
-
-
-
-
-
 //////////////////////////////////////////////////////////////// Inicia o servidor
 app.listen(port,'0.0.0.0', () => {
   console.log(`Servidor rodando em http://localhost:${port}`);
