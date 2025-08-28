@@ -124,14 +124,56 @@ app.post('/fretes', upload.single('ticket_image'), (req, res) => {
     });
 });
 
-
 // --- SUAS OUTRAS ROTAS (GET) ---
 
-app.get('/fazendas', (req, res) => { /* ... seu código aqui ... */ });
-app.get('/veiculos', (req, res) => { /* ... seu código aqui ... */ });
-app.get('/motoristas', (req, res) => { /* ... seu código aqui ... */ });
-app.get('/usuarios', (req, res) => { /* ... seu código aqui ... */ });
-app.get('/mesref', (req, res) => { /* ... seu código aqui ... */ });
+// Rota para buscar todas as fazendas
+app.get('/fazendas', (req, res) => {
+    const sql = 'SELECT * FROM fazendas ORDER BY nome';
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Erro ao buscar fazendas:', err);
+            return res.status(500).json({ error: 'Erro ao buscar dados.' });
+        }
+        res.status(200).json(results);
+    });
+});
+
+// Rota para buscar todos os veículos
+app.get('/veiculos', (req, res) => {
+    const sql = 'SELECT * FROM veiculos ORDER BY placa';
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Erro ao buscar veículos:', err);
+            return res.status(500).json({ error: 'Erro ao buscar dados.' });
+        }
+        res.status(200).json(results);
+    });
+});
+
+// Rota para buscar todos os motoristas
+app.get('/motoristas', (req, res) => {
+    const sql = 'SELECT * FROM motoristas ORDER BY nome';
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Erro ao buscar motoristas:', err);
+            return res.status(500).json({ error: 'Erro ao buscar dados.' });
+        }
+        res.status(200).json(results);
+    });
+});
+
+// Rota para buscar todos os usuários (sem a senha, por segurança)
+app.get('/usuarios', (req, res) => {
+    // IMPORTANTE: NUNCA retorne a coluna de senha para o aplicativo!
+    const sql = 'SELECT id, nome, Login, setor, liberado FROM usuarios ORDER BY nome';
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Erro ao buscar usuários:', err);
+            return res.status(500).json({ error: 'Erro ao buscar dados.' });
+        }
+        res.status(200).json(results);
+    });
+});
 
 // Rota para buscar MesRef e Quinzena por data exata
 app.get('/mesref/by-date', (req, res) => {
