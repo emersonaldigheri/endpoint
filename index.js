@@ -2,9 +2,9 @@ import express from 'express';
 import mysql from 'mysql2';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
-import multer from 'multer'; // Importa o multer para upload de arquivos
-import path from 'path';   // Importa o path para lidar com caminhos de arquivos
-import fs from 'fs';       // Importa o File System para criar a pasta de uploads
+import multer from 'multer'; 
+import path from 'path';  
+import fs from 'fs';       
 
 const app = express();
 const port = 3000;
