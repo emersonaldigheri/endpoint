@@ -166,7 +166,7 @@ app.post('/abastecimentos', (req, res) => {
 
 ////////////////////////////////////////////////////////////////////// ROTA PARA BUSCAR FORNECEDORES (COM FILTRO POR RAMO)
 app.get('/fornecedores', (req, res) => {
-    const sql = "SELECT * FROM fornecedores WHERE ramo = 'COMBUSTIVEL' ORDER BY nome";
+    const sql = "SELECT * FROM fornecedores WHERE ramo = 'COMBUSTIVEL' ORDER BY nome_fantasia";
     db.query(sql, (err, results) => {
         if (err) {
             console.error('Erro ao buscar FORNECEDORES:', err);
