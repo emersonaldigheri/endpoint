@@ -124,7 +124,68 @@ app.post('/fretes', upload.single('ticket_image'), (req, res) => {
     });
 });
 
+/////////////////////////////////////////////////////////////////////////// ROT post - A PARA CADASTRAR UM NOVO ABASTECIMENTO
+app.post('/abastecimentos', (req, res) => {
+    const {
+        Placa, ID_veiculo, Combustivel, Preco_Litro, dt_abast, qtd_litros, valor_total,
+        Motorista, quilometragem, Fornecedor, observacoes, Num_Nota, usuario_cad,
+        Quinzena, MesRef
+    } = req.body;
+
+    // Validação de campos obrigatórios
+    if (!Placa || !Combustivel || !dt_abast || !qtd_litros || !valor_total || !quilometragem || !Fornecedor || !Num_Nota) {
+        return res.status(400).json({ error: 'Todos os campos obrigatórios devem ser preenchidos.' });
+    }
+    
+    const dt_cadastro = new Date(); /// data do servidor
+
+    const sql = `INSERT INTO combustivel (
+        Placa, ID_veiculo, Combustivel, Preco_Litro, dt_abast, qtd_litros, valor_total,
+        Motorista, quilometragem, Fornecedor, observacoes, Num_Nota, dt_cadastro,
+        usuario_cad, Quinzena, MesRef
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const values = [
+        Placa, ID_veiculo, Combustivel, Preco_Litro, dt_abast, qtd_litros, valor_total,
+        Motorista, quilometragem, Fornecedor, observacoes, Num_Nota, dt_cadastro,
+        usuario_cad, Quinzena, MesRef
+    ];
+
+    db.query(sql, values, (err, result) => {
+        if (err) {
+            console.error('Erro ao inserir o abastecimento:', err);
+            return res.status(500).json({ error: 'Erro de servidor ao cadastrar abastecimento.' });
+        }
+        res.status(201).json({ message: 'Abastecimento cadastrado com sucesso!', id: result.insertId });
+    });
+});
+
+
+
 // --- SUAS OUTRAS ROTAS (GET) ---
+
+////////////////////////////////////////////////////////////////////// ROTA PARA BUSCAR FORNECEDORES (COM FILTRO POR RAMO)
+app.get('/fornecedores', (req, res) => {
+    const { ramo } = req.query; // Pega o filtro ?ramo=... da URL
+
+    let sql = 'SELECT * FROM fornecedores';
+    const params = [];
+
+    if (ramo) {
+        sql += ' WHERE ramo = ?';
+        params.push(ramo);
+    }
+
+    sql += ' ORDER BY nome';
+
+    db.query(sql, params, (err, results) => {
+        if (err) {
+            console.error('Erro ao buscar fornecedores:', err);
+            return res.status(500).json({ error: 'Erro ao buscar dados.' });
+        }
+        res.status(200).json(results);
+    });
+});
 
 // Rota para buscar todas as fazendas
 app.get('/fazendas', (req, res) => {
