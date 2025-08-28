@@ -128,7 +128,7 @@ app.post('/fretes', upload.single('ticket_image'), (req, res) => {
 
 // Rota para buscar todas as fazendas
 app.get('/fazendas', (req, res) => {
-    const sql = 'SELECT * FROM fazendas ORDER BY nome';
+    const sql = "SELECT * FROM fazendas WHERE liberada = 'S' ORDER BY nome";
     db.query(sql, (err, results) => {
         if (err) {
             console.error('Erro ao buscar fazendas:', err);
