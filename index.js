@@ -152,7 +152,7 @@ app.get('/veiculos', (req, res) => {
 
 // Rota para buscar todos os motoristas
 app.get('/motoristas', (req, res) => {
-    const sql = 'SELECT * FROM motoristas ORDER BY nome';
+    const sql = 'SELECT * FROM funcionarios ORDER BY nome';
     db.query(sql, (err, results) => {
         if (err) {
             console.error('Erro ao buscar motoristas:', err);
