@@ -329,7 +329,7 @@ app.get('/fretes/report', (req, res) => {
 
 ////////////////////////////////////////////////////////// ROTA PARA BUSCAR TODOS OS CLIENTES (PARA O FILTRO)
 app.get('/clientes', (req, res) => {
-    const sql = 'SELECT id, nome FROM cliente ORDER BY fantasia';
+    const sql = 'SELECT id, fantasia FROM cliente ORDER BY fantasia';
     db.query(sql, (err, results) => {
         if (err) {
             console.error('Erro ao buscar clientes:', err);
