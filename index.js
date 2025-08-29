@@ -359,13 +359,15 @@ app.get('/fretes/references', (req, res) => {
 });
 
 //////////////////////// ROTA PARA DADOS DOS GRÁFICOS (FATURAMENTO E VIAGENS DOS ÚLTIMOS 6 MESES)
+// ROTA ATUALIZADA PARA DADOS DOS GRÁFICOS DE FRETES (FATURAMENTO, VIAGENS E KM)
 app.get('/reports/fretes/last6months-summary', (req, res) => {
     const sql = `
         SELECT 
             YEAR(dt_frete) as ano, 
             MONTH(dt_frete) as mes, 
             SUM(ValTotFrete) as faturamento_total,
-            COUNT(*) as total_viagens
+            COUNT(*) as total_viagens,
+            SUM(KM) as total_km
         FROM 
             fretes 
         WHERE 
@@ -375,15 +377,77 @@ app.get('/reports/fretes/last6months-summary', (req, res) => {
         ORDER BY 
             ano ASC, mes ASC;
     `;
-    
     db.query(sql, (err, results) => {
-        if (err) {
-            console.error('Erro ao gerar dados para os gráficos:', err);
-            return res.status(500).json({ error: 'Erro ao gerar dados para os gráficos.' });
-        }
+        if (err) return res.status(500).json({ error: 'Erro ao gerar dados para os gráficos de fretes.' });
         res.status(200).json(results);
     });
 });
+
+// NOVA ROTA PARA DADOS DOS GRÁFICOS DE ABASTECIMENTO
+app.get('/reports/abastecimentos/last6months-summary', (req, res) => {
+    const sql = `
+        SELECT 
+            YEAR(dt_abast) as ano, 
+            MONTH(dt_abast) as mes, 
+            SUM(valor_total) as valor_total_abastecimento,
+            COUNT(*) as total_abastecimentos
+        FROM 
+            abastecimentos 
+        WHERE 
+            dt_abast >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY 
+            YEAR(dt_abast), MONTH(dt_abast) 
+        ORDER BY 
+            ano ASC, mes ASC;
+    `;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: 'Erro ao gerar dados para os gráficos de abastecimento.' });
+        res.status(200).json(results);
+    });
+});
+
+// NOVA ROTA PARA GRÁFICO DE PRODUÇÃO POR PLACA (PESO TOTAL)
+app.get('/reports/fretes/production-by-plate', (req, res) => {
+    const sql = `
+        SELECT
+            YEAR(dt_frete) as ano,
+            MONTH(dt_frete) as mes,
+            PlacaVeic as placa,
+            SUM(peso) as producao_total_peso
+        FROM
+            fretes
+        WHERE
+            dt_frete >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY
+            YEAR(dt_frete), MONTH(dt_frete), PlacaVeic
+        ORDER BY
+            ano ASC, mes ASC, producao_total_peso DESC;
+    `;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: 'Erro ao gerar dados de produção por placa.' });
+
+        // Processa os resultados para agrupar por mês
+        const processedData = results.reduce((acc, item) => {
+            const getMonthName = (monthNumber) => ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][monthNumber - 1];
+            const key = `${item.ano}-${String(item.mes).padStart(2, '0')}`;
+            if (!acc[key]) {
+                acc[key] = {
+                    label: `${getMonthName(item.mes)}/${String(item.ano).slice(-2)}`,
+                    placas: []
+                };
+            }
+            acc[key].placas.push({
+                placa: item.placa,
+                producao: item.producao_total_peso
+            });
+            return acc;
+        }, {});
+        
+        const finalData = Object.values(processedData);
+        res.status(200).json(finalData);
+    });
+});
+
 
 
 //////////////////////////////////////////////////////////////// Inicia o servidor
