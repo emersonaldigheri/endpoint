@@ -448,6 +448,48 @@ app.get('/reports/fretes/production-by-plate', (req, res) => {
     });
 });
 
+// NOVA ROTA PARA GRÁFICO DE VIAGENS POR PLACA
+app.get('/reports/fretes/trips-by-plate', (req, res) => {
+    const sql = `
+        SELECT
+            YEAR(dt_frete) as ano,
+            MONTH(dt_frete) as mes,
+            PlacaVeic as placa,
+            COUNT(*) as total_viagens
+        FROM
+            fretes
+        WHERE
+            dt_frete >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY
+            YEAR(dt_frete), MONTH(dt_frete), PlacaVeic
+        ORDER BY
+            ano ASC, mes ASC, total_viagens DESC;
+    `;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: 'Erro ao gerar dados de viagens por placa.' });
+
+        // Processa os resultados para agrupar por mês
+        const processedData = results.reduce((acc, item) => {
+            const getMonthName = (monthNumber) => ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][monthNumber - 1];
+            const key = `${item.ano}-${String(item.mes).padStart(2, '0')}`;
+            if (!acc[key]) {
+                acc[key] = {
+                    label: `${getMonthName(item.mes)}/${String(item.ano).slice(-2)}`,
+                    placas: []
+                };
+            }
+            acc[key].placas.push({
+                placa: item.placa,
+                viagens: item.total_viagens
+            });
+            return acc;
+        }, {});
+        
+        const finalData = Object.values(processedData);
+        res.status(200).json(finalData);
+    });
+});
+
 
 
 //////////////////////////////////////////////////////////////// Inicia o servidor
